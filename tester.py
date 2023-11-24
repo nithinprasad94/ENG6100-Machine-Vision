@@ -2,7 +2,8 @@ import os
 import cv2
 import matplotlib
 
-fpath = "./training_images/150924030660/1_0.png"
+#fpath = "./training_images/150924030660/1_0.png"
+fpath = "type_55_d/gear1_1_00_type55_d.png"
 orig_img = cv2.imread(fpath)
 print(orig_img.shape)
 cropped_img = orig_img[:,:]

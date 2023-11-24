@@ -1,8 +1,12 @@
 #import numpy as np
+from sklearn.decomposition import PCA
+import matplotlib.pyplot as plt
 import os
 from os import listdir
 #from os.path import isfile, join
 import cv2
+
+label_dict = {"type_55_nd":"Non-Defective", "type_55_d": "Defective", "type_55_pd":"Defective"}
 
 class Single_Image():
 
@@ -11,6 +15,7 @@ class Single_Image():
         self.orig_img = img
         self.img_cropped = None
         self.img_PCA = None
+        self.img_label = None
 
     def add_cropped_img(self,img_cropped):
         self.img_cropped = img_cropped
@@ -18,16 +23,33 @@ class Single_Image():
     def add_PCA_img(self,img_PCA):
         self.img_PCA = img_PCA
 
+    def display_img(self, img_format):
+        #image = cv2.imread('img.jpg')
+        if img_format == 0:
+            color_image = cv2.cvtColor(self.orig_img,cv2.COLOR_BGR2RGB)
+
+        elif img_format == 1:
+            color_image = cv2.cvtColor(self.img_cropped,cv2.COLOR_BGR2RGB)
+
+        else:
+            color_image = cv2.cvtColor(self.img_cropped,cv2.COLOR_BGR2RGB)
+
+        plt.imshow(color_image)
+        plt.axis('off')
+        plt.show()
+
 class Image_Collection():
 
     def __init__(self):
         self.img_obj_list = []
-        self.img_count = 0 #DEPRECATED
 
     def add_image_to_list(self,img_path,img):
         single_img_obj = Single_Image(img_path,img)
+        if "type_55_nd" in img_path:
+            single_img_obj.img_label = "Non-Defective"
+        elif ("type_55_d" in img_path) or ("type_55_pd" in img_path):
+            single_img_obj.img_label = "Defective"
         self.img_obj_list.append(single_img_obj)
-        self.img_count += 1 #DEPRECATED
 
     def return_orig_img_list(self):
         ret_list = []
@@ -52,6 +74,21 @@ class Image_Collection():
         for i in range(len(self.img_obj_list)):
             cropped_img = self.img_obj_list[i].orig_img[xmin:xmax,ymin:ymax]
             self.img_obj_list[i].add_cropped_img(cropped_img)
+
+    def PCA_for_crop_imgs_list(self):
+        ret_list = []
+
+        for i in range(len(self.img_obj_list)):
+            PCA_img = self.img_obj_list[i].PCA_img
+            ret_list.append(PCA_img)
+
+        return ret_list
+    def PCA_for_crop_imgs(self, n_components=500):
+        PCA_def = PCA(n_components)
+
+        for i in range(len(self.img_obj_list)):
+            PCA_img = PCA_def.fit_transform(self.img_obj_list[i].img_cropped)
+            self.img_obj_list[i].add_PCA_img(PCA_img)
 
 class File_Reader():
     '''
@@ -129,16 +166,16 @@ class File_Reader():
         cv2.imshow(fdescription,new_img)
         cv2.waitKey(0)
 
-fileObj = File_Reader("training_images")
-dataBlock = fileObj.get_fnames_from_dir()
-dataDict = dataBlock.img_obj_list
+# fileObj = File_Reader("training_images")
+# dataBlock = fileObj.get_fnames_from_dir()
+# imgObjList = dataBlock.img_obj_list
 #print(dataDict.keys())
-dataElem = dataDict[0]
+# dataElem = dataDict[0]
 #print(dataElem.keys())
-orig_img = dataElem['original_img']
-cropped_img = orig_img[0:800,0:800]
-cv2.imshow("smaller img",cropped_img)
-cv2.waitKey(0)
+# orig_img = dataElem['original_img']
+# cropped_img = orig_img[0:800,0:800]
+# cv2.imshow("smaller img",cropped_img)
+# cv2.waitKey(0)
 
 #fileObj.display_image('./training_images/150924030660/1_0.png')
 #'./training_images/150924030660/1_0.png', './training_images/150924030660/1_1.png', './training_images/150924030660/1_10.png',
