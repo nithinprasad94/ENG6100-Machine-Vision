@@ -1,10 +1,10 @@
-#import numpy as np
 from sklearn.decomposition import PCA
 import matplotlib.pyplot as plt
 import os
 from os import listdir
 #from os.path import isfile, join
 import cv2
+import numpy as np
 
 label_dict = {"type_55_nd":"Non-Defective", "type_55_d": "Defective", "type_55_pd":"Defective"}
 
@@ -12,55 +12,87 @@ class Single_Image():
 
     def __init__(self,img_path,img):
         self.img_path = img_path
-        self.orig_img = img
+        self.img_orig = img
         self.img_cropped = None
-        self.img_PCA = None
+        self.img_cropped_gray = None
+        self.img_pca_approx = None
+        self.img_pca_features = None
         self.img_label = None
 
     def add_cropped_img(self,img_cropped):
         self.img_cropped = img_cropped
 
-    def add_PCA_img(self,img_PCA):
-        self.img_PCA = img_PCA
+    def add_grayscale_img(self,img_grayscale):
+        self.img_cropped_gray = img_grayscale
+
+    def add_eigencomputations(self,new_features,img_pca_approx):
+        self.img_pca_features = new_features
+        self.img_pca_approx = img_pca_approx
+
+    def set_label(self,inp_label):
+        self.img_label = inp_label
 
     def display_img(self, img_format):
         #image = cv2.imread('img.jpg')
         if img_format == 0:
-            color_image = cv2.cvtColor(self.orig_img,cv2.COLOR_BGR2RGB)
+            image = cv2.cvtColor(self.img_orig,cv2.COLOR_BGR2RGB)
+            plt.imshow(image)
+            plt.title('Original Image')
+            plt.axis('off')
+            plt.show()
 
         elif img_format == 1:
-            color_image = cv2.cvtColor(self.img_cropped,cv2.COLOR_BGR2RGB)
+            image = cv2.cvtColor(self.img_cropped,cv2.COLOR_BGR2RGB)
+            plt.imshow(image)
+            plt.title('Cropped Image')
+            plt.axis('off')
+            plt.show()
+
+        elif img_format == 2:
+            plt.imshow(self.img_cropped_gray,cmap='gray')
+            plt.title('Grayscale Image')
+            plt.axis('off')
+            plt.show()
+
+        elif img_format == 3:
+            plt.imshow(self.img_pca_approx,cmap='gray')
+            plt.title('PCA Image')
+            plt.axis('off')
+            plt.show()
 
         else:
-            color_image = cv2.cvtColor(self.img_cropped,cv2.COLOR_BGR2RGB)
-
-        plt.imshow(color_image)
-        plt.axis('off')
-        plt.show()
+            #image = cv2.cvtColor(self.img_cropped,cv2.COLOR_BGR2RGB)
+            pass
 
 class Image_Collection():
 
     def __init__(self):
         self.img_obj_list = []
+        self.PCA_eigenvals = None
+        self.PCA_eigenvecs_dim_d = None
+        self.X = None
+        self.target = None
 
     def add_image_to_list(self,img_path,img):
         single_img_obj = Single_Image(img_path,img)
         if "type_55_nd" in img_path:
-            single_img_obj.img_label = "Non-Defective"
+            single_img_obj.set_label("ND")
         elif ("type_55_d" in img_path) or ("type_55_pd" in img_path):
-            single_img_obj.img_label = "Defective"
+            #NOTE: here we err on the side of caution and classify possible defects as defects until otherwise
+            # determined by querying the SME (Subject Matter Expert) on the data.
+            single_img_obj.set_label("D")
         self.img_obj_list.append(single_img_obj)
 
-    def return_orig_img_list(self):
+    def return_img_orig_list(self):
         ret_list = []
 
         for i in range(len(self.img_obj_list)):
-            orig_img = (self.img_obj_list[i]).orig_img
-            ret_list.append(orig_img)
+            img_orig = (self.img_obj_list[i]).img_orig
+            ret_list.append(img_orig)
 
         return ret_list
 
-    def return_cropped_img_list(self):
+    def return_img_cropped_list(self):
         ret_list = []
 
         for i in range(len(self.img_obj_list)):
@@ -72,23 +104,97 @@ class Image_Collection():
     def crop_all_imgs(self,xmin,xmax,ymin,ymax):
 
         for i in range(len(self.img_obj_list)):
-            cropped_img = self.img_obj_list[i].orig_img[xmin:xmax,ymin:ymax]
+            cropped_img = self.img_obj_list[i].img_orig[xmin:xmax,ymin:ymax]
             self.img_obj_list[i].add_cropped_img(cropped_img)
 
-    def PCA_for_crop_imgs_list(self):
+    def convert_cropped_to_grayscale(self):
+
+        for i in range(len(self.img_obj_list)):
+            img_grayscale = cv2.cvtColor(self.img_obj_list[i].img_cropped, cv2.COLOR_BGR2GRAY)
+            self.img_obj_list[i].add_grayscale_img(img_grayscale)
+
+    def return_PCA_features(self):
         ret_list = []
 
         for i in range(len(self.img_obj_list)):
-            PCA_img = self.img_obj_list[i].PCA_img
-            ret_list.append(PCA_img)
+            PCA_features = self.img_obj_list[i].img_pca_features
+            ret_list.append(PCA_features)
+
+        ret_list = np.array(ret_list)
 
         return ret_list
-    def PCA_for_crop_imgs(self, n_components=500):
-        PCA_def = PCA(n_components)
+
+    def return_data_labels(self):
+        ret_list = []
 
         for i in range(len(self.img_obj_list)):
-            PCA_img = PCA_def.fit_transform(self.img_obj_list[i].img_cropped)
-            self.img_obj_list[i].add_PCA_img(PCA_img)
+            img_label = self.img_obj_list[i].img_label
+            if img_label == "ND":
+                ret_list.append(0) #Encode Non-defective data as 0
+            elif img_label == "D":
+                ret_list.append(1) #Encode defective data as 1
+            else:
+                ret_list.append(None)
+
+        ret_list = np.array(ret_list)
+        return ret_list
+
+    def apply_PCA_on_all_images(self, n_components=110):
+        PCA_def = PCA(n_components)
+
+        vectorized_images = [] #Forms a n=110 * d=1.6302mil sized matrix
+        for i in range(len(self.img_obj_list)):
+            vectorized_img = np.reshape(self.img_obj_list[i].img_cropped_gray,-1)
+            vectorized_images.append(vectorized_img)
+        vectorized_images = np.array(vectorized_images)
+
+        print("Vectorized Image Shape:",vectorized_images[0].shape)
+
+        print("Pre-fit-transform")
+        new_features = PCA_def.fit_transform(vectorized_images) #Coordinates in the lambda plane (plane of eigenvecs)
+        print("Post-fit-transform")
+
+        exp_var_pca = PCA_def.explained_variance_ratio_
+        exp_var_cumul_sum = np.cumsum(exp_var_pca)
+        print("Explained Variance Ratio for PCA: ",exp_var_pca)
+        print("Explained variance Cumulative Sum for PCA: ",exp_var_cumul_sum)
+
+        ###### < REFACTOR THIS CODE
+        eigenvecs_dim_d = (PCA_def.components_).transpose() #Takes the row eigenvectors and turns it into column
+        eigenvals = PCA_def.explained_variance_ #Should be 8 values
+        print("Eigenvecs dim d shape:",eigenvecs_dim_d.shape) #Should be 1630200x8 sized matrix (implementation detail)
+
+        # Create the visualization plot
+        # REFERENCE: https://vitalflux.com/pca-explained-variance-concept-python-example/
+        #plt.bar(range(0,len(exp_var_pca)), exp_var_pca, alpha=0.5, align='center', label='Individual explained variance')
+        #plt.step(range(0,len(exp_var_cumul_sum)), exp_var_cumul_sum, where='mid',label='Cumulative explained variance')
+        #plt.ylabel('Explained variance ratio')
+        #plt.xlabel('Principal component index')
+        #plt.legend(loc='best')
+        #plt.tight_layout()
+        #plt.show()
+        ###### >
+
+        #Add all the Eigenparams, as well as the Reconstructed Image using the new Eigenvectors
+        self.PCA_eigenvals = eigenvals
+        self.PCA_eigenvecs_dim_d = eigenvecs_dim_d
+
+        for i in range(len(self.img_obj_list)):
+            new_features_i = new_features[i].transpose()
+            img_pca_approx = np.matmul(eigenvecs_dim_d,new_features_i)
+            grayscale_dims = self.img_obj_list[i].img_cropped_gray.shape
+            img_pca_approx = np.reshape(img_pca_approx,(grayscale_dims[0],grayscale_dims[1]))
+            self.img_obj_list[i].add_eigencomputations(new_features[i],img_pca_approx)
+
+        print("PCA Transformation Complete")
+
+    def acquire_data(self,data):
+        self.X = data
+    def acquire_target(self,target):
+        self.target = target
+
+    def get_data_and_target(self):
+        return (self.X,self.target)
 
 class File_Reader():
     '''
@@ -133,8 +239,8 @@ class File_Reader():
                 full_filepath = currpath + fname
                 self.image_fnames.append(full_filepath)
 
-                orig_img = cv2.imread(full_filepath)
-                self.images.append(orig_img)
+                img_orig = cv2.imread(full_filepath)
+                self.images.append(img_orig)
 
         #print(self.image_fnames[0:4])
         #print(self.images[0:4])
@@ -172,8 +278,8 @@ class File_Reader():
 #print(dataDict.keys())
 # dataElem = dataDict[0]
 #print(dataElem.keys())
-# orig_img = dataElem['original_img']
-# cropped_img = orig_img[0:800,0:800]
+# img_orig = dataElem['original_img']
+# cropped_img = img_orig[0:800,0:800]
 # cv2.imshow("smaller img",cropped_img)
 # cv2.waitKey(0)
 
