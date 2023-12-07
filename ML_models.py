@@ -6,6 +6,8 @@ from os import listdir
 import cv2
 import numpy as np
 
+from sklearn.model_selection import LeaveOneOut
+
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Activation
 
@@ -208,6 +210,3 @@ class MLP():
         plt.xlabel('Epochs')
         plt.legend(['train', 'test'])
         plt.show()
-
-
-
