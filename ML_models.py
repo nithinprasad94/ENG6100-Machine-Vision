@@ -17,12 +17,38 @@ from tensorflow.keras import regularizers
 from sklearn.model_selection import train_test_split
 from tensorflow.keras.utils import to_categorical
 
-class MLP():
+### SVM Imports ###
+from sklearn.svm import SVC
+from sklearn import preprocessing, metrics
+from sklearn.metrics import confusion_matrix, accuracy_score, classification_report
+import seaborn as sns
+
+### FUNCTIONS TO PROCESS MODELS ###
+def apply_holdout(data,target,training_ratio=0.7):
+    '''
+    Applies holdout on dataset: assumes a 70/30 split
+    '''
+    X_train, X_test, y_train, y_test = train_test_split(data, target, test_size=1-training_ratio, stratify=target, random_state=0)
+    return [X_train,X_test,y_train,y_test]
+
+def categorize_labels(y_train,y_test,num_classes):
+    '''
+    One Hot encodes row vectors
+    '''
+    y_train_cat = to_categorical(y_train,num_classes)
+    y_test_cat = to_categorical(y_test,num_classes)
+
+    return y_train_cat,y_test_cat
+
+################## MLP CLASS ################
+
+class MLP_Class():
 
     def __init__(self,data,target):
-        self.X = data
+        self.data = data
         self.target = target
-        self.num_features = data.shape[1]
+        self.num_features = data.shape[1] #Store the number of input features in the data
+        self.num_classes = len(np.unique(target)) #Store the number of classes in the target
         self.X_train = None
         self.X_test = None
         self.y_train = None
@@ -30,16 +56,11 @@ class MLP():
         self.y_train_cat = None
         self.y_test_cat = None
 
-    def perform_train_test_split(self,testing_ratio=0.7):
-        self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(self.X, self.target, test_size=testing_ratio, stratify=self.target, random_state=0)
+    def initialize_MLP(self):
+        self.X_train,self.X_test,self.y_train,self.y_test = apply_holdout(self.data,self.target)
+        self.y_train_cat,self.y_test_cat = categorize_labels(self.y_train,self.y_test,self.num_classes)
 
-    def categorize_target(self):
-        #print("Y train:",y_train)
-        self.y_train_cat=to_categorical(self.y_train,2) #Converts decimal classes into matrix of row vectors. Each row vector is a one-hot representation of the class.
-        #print("Y train Cat:",y_train_cat)
-        self.y_test_cat=to_categorical(self.y_test,2)
-
-    def create_MLP_model(self,hyperparams):
+    def construct_MLP_model(self,hyperparams):
         '''
         hyperparams: tuple of hyperparameters used to configure different MLP models
         '''
@@ -77,7 +98,7 @@ class MLP():
         for i in range(n):
             #print("------------ Iteration " + str(i) + " ------------")
 
-            model = self.create_MLP_model(hyperparams)
+            model = self.construct_MLP_model(hyperparams)
             #model.summary()
             #print("X.train:",self.X_train)
             #print("y_train_cat:",self.y_train_cat)
@@ -180,8 +201,9 @@ class MLP():
     def generate_MLP_models(self):
 
         print("Prior to Train Test Split")
-        self.perform_train_test_split(0.7)
-        self.categorize_target()
+        self.X_train,self.X_test,self.y_train,self.y_test = apply_holdout(0.7)
+        num_classes = len(np.unique(self.y_test))
+        self.y_train_cat,self.y_test_cat = categorize_labels(self.y_train,self.y_test,num_classes)
         hyperparam_values = [(128,256),('relu',),(0.1,0.2,0.5),(128,256),('relu',),(0.05,0.1,0.2),(128,256),('relu',),(0.05,0.1,0.2)] #216 PERMUTATIONS
         #hyperparam_values = [(256,),('relu',),(0.2,),(128,256),('relu',),(0.1,),(128,),('relu',),(0.05,)] #2 PERMUTATIONS
         #hyperparam_values = [(128,256),('relu',),(0.1,),(128,256),('relu',),(0.05,),(128,),('relu',),(0.05,0.1,0.2)]
@@ -189,8 +211,8 @@ class MLP():
         self.evaluated_models_dict = evaluated_models_dict
 
     def evaluate_model(self):
-        hyperparam_eval_set = (256, 'relu', 0.1, 256, 'relu', 0.05, 128, 'relu', 0.2)
-        model = self.create_MLP_model(hyperparam_eval_set)
+        hyperparam_eval_set = (256, 'relu', 0.1, 256, 'relu', 0.05, 256, 'relu', 0.1) #BEST OF 216 trials
+        model = self.construct_MLP_model(hyperparam_eval_set)
         History = model.fit(self.X_train,self.y_train_cat, epochs = 100, validation_data = (self.X_test,self.y_test_cat),batch_size=128, verbose = 1) #Original Vectors
 
         plt.plot(History.history['accuracy'])
@@ -209,5 +231,59 @@ class MLP():
         plt.legend(['train', 'test'])
         plt.show()
 
+class SVC_Class():
+    def __init__(self,data,target):
+        self.data = data
+        self.target = target
+        self.X_train = None
+        self.X_test = None
+        self.y_train = None
+        self.y_test = None
+        self.SVC_kernels = {0:'linear',1:'poly',2:'rbf',3:'sigmoid'}
 
+    def initialize_SVC(self):
+        self.X_train,self.X_test,self.y_train,self.y_test = apply_holdout(self.data,self.target)
+
+    def run_SVC(self,kernel_index):
+        kernel_type = None
+        kernel_type = self.SVC_kernels[kernel_index]
+
+        print("------------- CLASSIFIER TYPE: ",kernel_type," ------------")
+        classifier = SVC(kernel = kernel_type, random_state = 0)
+        classifier.fit(self.X_train, self.y_train)
+
+        #Predict Test Set Results
+        y_pred = classifier.predict(self.X_test)
+
+        #print("Predicted y: ",y_pred)
+        #print("Actual y: ", y_test)
+
+        #Make a confusion matrix/accuracy score
+        cm = confusion_matrix(self.y_test, y_pred)
+        #print(cm.shape)
+        #print(cm)
+        acc = accuracy_score(self.y_test,y_pred)
+        #print(acc)
+
+        #Heatmap
+        #plt.figure(1, figsize=(16, 9))
+        #sns.heatmap(confusion_matrix(y_test, y_pred))
+        #plt.show()
+        #print(classification_report(y_test, y_pred))
+        #print("accuracy score:{:.2f}%".format(metrics.accuracy_score(y_test, y_pred)*100))
+        return cm,acc
+
+    def run_all_4_SVCs(self):
+        '''
+        Runs all 4 SVCs and returns the classification matrix of the best
+        '''
+        ret_list = []
+
+        #Attempt all 4 SVCs
+        for i in range(4):
+            cm,acc = self.run_SVC(i)
+            kernel_type = self.SVC_kernels[i]
+            ret_list.append((kernel_type,cm,acc))
+
+        return ret_list
 

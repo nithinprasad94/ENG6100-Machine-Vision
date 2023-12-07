@@ -47,8 +47,13 @@ if __name__ == '__main__':
     imgCollection.acquire_data(X)
     imgCollection.get_data_and_target()
 
-    MLP_model = ML_models.MLP(X,target)
-    MLP_model.generate_MLP_models()
-
+    MLP_model = ML_models.MLP_Class(X,target)
+    MLP_model.initialize_MLP()
+    #MLP_model.generate_MLP_models()
     MLP_model.evaluate_model()
+
+    SVC_model = ML_models.SVC_Class(X,target)
+    SVC_model.initialize_SVC()
+    SVC_results = SVC_model.run_all_4_SVCs()
+    print(SVC_results)
 
