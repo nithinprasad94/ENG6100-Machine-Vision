@@ -100,6 +100,18 @@ class Image_Collection():
             ret_list.append(cropped_img)
 
         return ret_list
+    def return_cropped_gray_img_list(self):
+        ret_list = []
+
+        for i in range(len(self.img_obj_list)):
+            gray_img = self.img_obj_list[i].img_cropped_gray
+            print("Gray Image Shape:",gray_img.shape)
+            ret_list.append(gray_img)
+
+        ret_list = np.array(ret_list)
+        print("Gray List Array:",ret_list.shape)
+
+        return ret_list
 
     def crop_all_imgs(self,xmin,xmax,ymin,ymax):
 

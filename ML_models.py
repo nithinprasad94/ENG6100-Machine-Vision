@@ -6,6 +6,8 @@ from os import listdir
 import cv2
 import numpy as np
 
+from sklearn.model_selection import LeaveOneOut
+
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Activation
 
@@ -23,6 +25,20 @@ from sklearn import preprocessing, metrics
 from sklearn.metrics import confusion_matrix, accuracy_score, classification_report
 import seaborn as sns
 
+#K-fold and LOO Cross Validation Imports
+from sklearn.model_selection import LeaveOneOut,KFold
+
+#CNN Validation Imports
+from tensorflow.keras.layers import Conv2D
+from tensorflow.keras.layers import MaxPooling2D
+from tensorflow.keras.layers import Flatten
+import tensorflow
+
+#X_sample = np.array([[1,2,3],[4,5,6],[7,8,9],[10,11,12],[1,2,3],[4,5,6],[7,8,9],[10,11,12],[1,2,3],[4,5,6],[7,8,9],[10,11,12],[1,2,3],[4,5,6],[7,8,9],[10,11,12]])
+#y_sample = np.array([1,2,3,4,1,2,3,4,1,2,3,4,1,2,3,4])
+#print(X_sample.shape)
+#print(y_sample.shape)
+
 ### FUNCTIONS TO PROCESS MODELS ###
 def apply_holdout(data,target,training_ratio=0.7):
     '''
@@ -30,6 +46,74 @@ def apply_holdout(data,target,training_ratio=0.7):
     '''
     X_train, X_test, y_train, y_test = train_test_split(data, target, test_size=1-training_ratio, stratify=target, random_state=0)
     return [X_train,X_test,y_train,y_test]
+
+#output_tensor = apply_holdout(X_sample,y_sample,0.5)
+#print("-------------------------")
+#print("X_train:",output_tensor[0])
+#print("X_test:",output_tensor[1])
+#print("y_train:",output_tensor[2])
+#print("y_test",output_tensor[3])
+
+def apply_LOO_CV(data, labels):
+  '''
+  Function to apply leave one out cross validation on input data
+  Data is expected as a list of serialized images
+  '''
+  leave_one_out = LeaveOneOut()
+
+  # Initialize lists to store data
+  X_train_list = []
+  X_test_list = []
+  y_train_list = []
+  y_test_list = []
+
+  for train_index, test_index in leave_one_out.split(data):
+    X_train, X_test = np.array(data)[train_index], np.array(data)[test_index]
+    y_train, y_test = np.array(labels)[train_index], np.array(labels)[test_index]
+    X_train_list.append(X_train)
+    X_test_list.append(X_test)
+    y_train_list.append(y_train)
+    y_test_list.append(y_test)
+
+  return X_train_list, X_test_list, y_train_list, y_test_list
+
+#output_tensor = apply_LOO_CV(X_sample,y_sample)
+#print("-------------------------")
+#print(type(output_tensor))
+#print(output_tensor)
+#print("X_train shape:",len(output_tensor[0]))
+#print("X_train 0 shape:",output_tensor[0][0].shape)
+#print("X_test:",len(output_tensor[1]))
+#print("X_test 0 shape:",output_tensor[1][0].shape)
+#print("y_train:",len(output_tensor[2]))
+#print("y_train 0 shape:",output_tensor[2][0].shape)
+#print("y_test",len(output_tensor[3]))
+#print("y_test 0 shape:",output_tensor[3][0].shape)
+
+# Reference: https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.KFold.html
+# Reference: https://machinelearningmastery.com/k-fold-cross-validation/
+
+def apply_KF_CV(data, labels):
+  '''
+  Function to apply k-fold cross validation on input data
+  Data is expected as a list of serialized images
+  '''
+  kfold = KFold(n_splits=5, shuffle=False, random_state=None)
+
+  X_train_list = []
+  X_test_list = []
+  y_train_list = []
+  y_test_list = []
+
+  for train_index, test_index in kfold.split(data):
+    X_train, X_test = np.array(data)[train_index], np.array(data)[test_index]
+    y_train, y_test = np.array(labels)[train_index], np.array(labels)[test_index]
+    X_train_list.append(X_train)
+    X_test_list.append(X_test)
+    y_train_list.append(y_train)
+    y_test_list.append(y_test)
+
+  return X_train_list, X_test_list, y_train_list, y_test_list
 
 def categorize_labels(y_train,y_test,num_classes):
     '''
@@ -55,10 +139,32 @@ class MLP_Class():
         self.y_test = None
         self.y_train_cat = None
         self.y_test_cat = None
+        self.X_train_list = []
+        self.X_test_list = []
+        self.y_train_list = []
+        self.y_test_list = []
+        self.num_folds = None
+        self.y_train_cat_list = []
+        self.y_test_cat_list = []
+        self.folds = []
 
     def initialize_MLP(self):
         self.X_train,self.X_test,self.y_train,self.y_test = apply_holdout(self.data,self.target)
         self.y_train_cat,self.y_test_cat = categorize_labels(self.y_train,self.y_test,self.num_classes)
+
+    def initialize_MLP_LOO(self):
+
+        self.X_train_list,self.X_test_list,self.y_train_list,self.y_test_list = apply_LOO_CV(self.data,self.target)
+        print(len(self.X_train_list),",",len(self.X_test_list),",",len(self.y_train_list),",",len(self.y_test_list))
+        self.num_folds = len(self.X_train_list)
+
+        self.folds = []
+        for i in range(self.num_folds):
+            y_train_cat,y_test_cat = categorize_labels(self.y_train_list[i],self.y_test_list[i],self.num_classes)
+            self.y_train_cat_list.append(y_train_cat)
+            self.y_test_cat_list.append(y_test_cat)
+            new_fold = [self.X_train_list[i],self.X_test_list[i],self.y_train_list[i],self.y_test_list[i],y_train_cat,y_test_cat]
+            self.folds.append(new_fold)
 
     def construct_MLP_model(self,hyperparams):
         '''
@@ -210,10 +316,11 @@ class MLP_Class():
         evaluated_models_dict = self.variate_hyperparams_on_MLP_model(hyperparam_values,5)
         self.evaluated_models_dict = evaluated_models_dict
 
-    def evaluate_model(self):
-        hyperparam_eval_set = (256, 'relu', 0.1, 256, 'relu', 0.05, 256, 'relu', 0.1) #BEST OF 216 trials
+    def evaluate_model(self,num_epochs = 100):
+        hyperparam_eval_set = (256, 'relu', 0.1, 256, 'relu', 0.05, 128, 'relu', 0.2)
         model = self.construct_MLP_model(hyperparam_eval_set)
-        History = model.fit(self.X_train,self.y_train_cat, epochs = 100, validation_data = (self.X_test,self.y_test_cat),batch_size=128, verbose = 1) #Original Vectors
+
+        History = model.fit(self.X_train,self.y_train_cat, epochs = num_epochs, validation_data = (self.X_test,self.y_test_cat),batch_size=128, verbose = 1) #Original Vectors
 
         plt.plot(History.history['accuracy'])
         plt.plot(History.history['val_accuracy'])
@@ -230,6 +337,66 @@ class MLP_Class():
         plt.xlabel('Epochs')
         plt.legend(['train', 'test'])
         plt.show()
+
+    def evaluate_model_LOO(self):
+        hyperparam_eval_set = (256, 'relu', 0.1, 256, 'relu', 0.05, 128, 'relu', 0.2)
+
+        train_loss_vec = np.array([])
+        train_acc_vec = np.array([])
+        val_loss_vec = np.array([])
+        val_acc_vec = np.array([])
+
+        #for i in range(self.num_folds):
+        for i in range(20):
+            print("Working on fold: ",i)
+            model = self.construct_MLP_model(hyperparam_eval_set)
+
+            X_train = self.X_train_list[i]
+            y_train_cat = self.y_train_cat_list[i]
+            X_test = self.X_test_list[i]
+            y_test_cat = self.y_test_cat_list[i]
+            History = model.fit(X_train,y_train_cat, epochs = 100, validation_data = (X_test,y_test_cat),batch_size=128, verbose = 0) #Original Vectors
+
+            plt.plot(History.history['accuracy'])
+            plt.plot(History.history['val_accuracy'])
+            train_loss_vec = np.append(train_loss_vec,History.history['loss'][-1])
+            train_acc_vec = np.append(train_acc_vec,History.history['accuracy'][-1])
+            val_loss_vec = np.append(val_loss_vec,History.history['val_loss'][-1])
+            val_acc_vec = np.append(val_acc_vec,History.history['val_accuracy'][-1])
+            #print(train_loss_vec)
+            #assert(False)
+            #plt.title('Model Accuracy')
+            #plt.ylabel('Accuracy')
+            #plt.xlabel('Epochs')
+            #plt.legend(['train', 'test'])
+            #plt.show()
+
+            #plt.plot(History.history['loss'])
+            #plt.plot(History.history['val_loss'])
+            #plt.title('Model Loss')
+            #plt.ylabel('Loss')
+            #plt.xlabel('Epochs')
+            #plt.legend(['train', 'test'])
+            #plt.show()
+        train_loss_mean = np.mean(train_loss_vec)
+        train_acc_mean = np.mean(train_acc_vec)
+        val_loss_mean = np.mean(val_loss_vec)
+        val_acc_mean = np.mean(val_acc_vec)
+
+        train_loss_stddev = np.std(train_loss_vec)
+        train_acc_stddev = np.std(train_acc_vec)
+        val_loss_stddev = np.std(val_loss_vec)
+        val_acc_stddev = np.std(val_acc_vec)
+
+        print("Training Loss Mean: ",train_loss_mean)
+        print("Training Acc Mean: ",train_acc_mean)
+        print("Validation Loss Mean: ",val_loss_mean)
+        print("Validation Acc Mean: ",val_acc_mean)
+
+        print("Training Loss Stddev: ",train_loss_stddev)
+        print("Training Acc Stddev: ",train_acc_stddev)
+        print("Validation Loss Stddev: ",val_loss_stddev)
+        print("Validation Acc Stddev: ",val_acc_stddev)
 
 class SVC_Class():
     def __init__(self,data,target):
@@ -287,3 +454,60 @@ class SVC_Class():
 
         return ret_list
 
+class CNN_Class():
+
+    def __init__(self,data,target):
+        self.data = data
+        self.target = target
+        self.num_features = data.shape[1] #Store the number of input features in the data
+        self.num_classes = len(np.unique(target)) #Store the number of classes in the target
+        self.X_train = None
+        self.X_test = None
+        self.y_train = None
+        self.y_test = None
+        self.y_train_cat = None
+        self.y_test_cat = None
+        self.X_train_list = []
+        self.X_test_list = []
+        self.y_train_list = []
+        self.y_test_list = []
+        self.num_folds = None
+        self.y_train_cat_list = []
+        self.y_test_cat_list = []
+        self.folds = []
+
+    def initialize_CNN(self):
+        self.X_train,self.X_test,self.y_train,self.y_test = apply_holdout(self.data,self.target)
+        self.y_train_cat,self.y_test_cat = categorize_labels(self.y_train,self.y_test,self.num_classes)
+
+    def construct_and_run_CNN_model(self):
+        '''
+        hyperparams: tuple of hyperparameters used to configure different MLP models
+        '''
+        #References:
+        # https://pyimagesearch.com/2018/12/31/keras-conv2d-and-convolutional-layers/
+        # https://medium.com/@msgold/predicting-images-with-a-cnn-90a25a9e4509#:~:text=In%20summary%2C%20a%20Convolutional%20Neural,in%20various%20computer%20vision%20tasks.
+
+        conv_model = Sequential()
+        conv_model.add(Conv2D(32, (3, 3), activation='relu', input_shape=(1300,1254,1)))
+        conv_model.add(MaxPooling2D((2, 2)))
+        conv_model.add(Conv2D(64, (3, 3), activation='relu'))
+        conv_model.add(MaxPooling2D((2, 2)))
+        conv_model.add(Conv2D(64, (3, 3), activation='relu'))
+        conv_model.add(Flatten())
+        conv_model.add(Dense(128, activation='relu'))
+        conv_model.add(Dense(2))
+
+        conv_model.summary()
+
+        conv_model.compile(optimizer='adam', loss=tensorflow.keras.losses.SparseCategoricalCrossentropy(from_logits=True),metrics=['accuracy'])
+
+        print("Before Fit")
+
+        History = conv_model.fit(self.X_train,self.y_train, epochs = 100,validation_data = (self.X_test,self.y_test),batch_size=128, verbose = 1)
+
+        #y_pred_encoded = conv_model.predict(X_test)
+        #print(y_pred_encoded.shape)
+        #y_pred = np.argmax(y_pred_encoded, axis=1)
+        #print(y_pred)
+        #print(y_test)
