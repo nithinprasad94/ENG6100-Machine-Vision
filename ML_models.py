@@ -127,7 +127,10 @@ def categorize_labels(y_train,y_test,num_classes):
 ################## MLP CLASS ################
 
 class MLP_Class():
-
+    '''
+    This class is used when working with the Multilayer Perceptron Model
+    '''
+    #Define variables
     def __init__(self,data,target):
         self.data = data
         self.target = target
@@ -148,16 +151,19 @@ class MLP_Class():
         self.y_test_cat_list = []
         self.folds = []
 
+    #Function for holodout split
     def initialize_MLP(self):
         self.X_train,self.X_test,self.y_train,self.y_test = apply_holdout(self.data,self.target)
         self.y_train_cat,self.y_test_cat = categorize_labels(self.y_train,self.y_test,self.num_classes)
 
+    #Function for leave one out split
     def initialize_MLP_LOO(self):
 
         self.X_train_list,self.X_test_list,self.y_train_list,self.y_test_list = apply_LOO_CV(self.data,self.target)
         print(len(self.X_train_list),",",len(self.X_test_list),",",len(self.y_train_list),",",len(self.y_test_list))
         self.num_folds = len(self.X_train_list)
 
+        #This loop combines all of the folds required for leave one out
         self.folds = []
         for i in range(self.num_folds):
             y_train_cat,y_test_cat = categorize_labels(self.y_train_list[i],self.y_test_list[i],self.num_classes)
@@ -194,6 +200,7 @@ class MLP_Class():
 
         return model
 
+    #This function iterates through the hyperparameter set 
     def run_model_n_times_per_hyperparam_set(self,hyperparams,n=1):
 
         train_loss_vec = []
@@ -304,6 +311,7 @@ class MLP_Class():
         f.close()
         return model_eval_dict
 
+    #This function seperates the train test split used for the MLP model
     def generate_MLP_models(self):
 
         print("Prior to Train Test Split")
@@ -316,8 +324,9 @@ class MLP_Class():
         evaluated_models_dict = self.variate_hyperparams_on_MLP_model(hyperparam_values,5)
         self.evaluated_models_dict = evaluated_models_dict
 
-    def evaluate_model(self,num_epochs = 100):
-        hyperparam_eval_set = (256, 'relu', 0.1, 256, 'relu', 0.05, 128, 'relu', 0.2)
+    #This function prints the accuracy and losses of a test, train split
+    def evaluate_model(self, hyperparam_eval_set, num_epochs = 100):
+
         model = self.construct_MLP_model(hyperparam_eval_set)
 
         History = model.fit(self.X_train,self.y_train_cat, epochs = num_epochs, validation_data = (self.X_test,self.y_test_cat),batch_size=128, verbose = 1) #Original Vectors
@@ -338,16 +347,16 @@ class MLP_Class():
         plt.legend(['train', 'test'])
         plt.show()
 
-    def evaluate_model_LOO(self):
-        hyperparam_eval_set = (256, 'relu', 0.1, 256, 'relu', 0.05, 128, 'relu', 0.2)
+    #This function prints the accuracy and losses of using leave one out cross validation
+    def evaluate_model_LOO(self, hyperparam_eval_set):
 
         train_loss_vec = np.array([])
         train_acc_vec = np.array([])
         val_loss_vec = np.array([])
         val_acc_vec = np.array([])
 
-        #for i in range(self.num_folds):
-        for i in range(20):
+        for i in range(self.num_folds):
+        #for i in range(20):
             print("Working on fold: ",i)
             model = self.construct_MLP_model(hyperparam_eval_set)
 
